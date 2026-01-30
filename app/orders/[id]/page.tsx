@@ -39,7 +39,7 @@ export default async function OrderDetailsPage({
             </div>
             <div className="flex gap-2">
               <Button asChild variant="outline">
-                <Link href="/orders">Назад</Link>
+                <Link href="/orders">Виж всички</Link>
               </Button>
               <Button asChild>
                 <Link href="/orders/new">Добави поръчка</Link>
@@ -78,7 +78,7 @@ export default async function OrderDetailsPage({
           </div>
           <div className="flex gap-2">
             <Button asChild variant="outline">
-              <Link href="/orders">Назад</Link>
+              <Link href="/orders">Виж всички</Link>
             </Button>
             <Button asChild>
               <Link href={`/orders/${order.id}/edit`}>Редактирай</Link>

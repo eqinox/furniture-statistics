@@ -12,7 +12,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { CityRow, DistrictRow, OrderInput, OrderRow } from "@/lib/actions";
+import { CityRow, DistrictRow, OrderInput, OrderRow, VillageRow } from "@/lib/actions";
 import { orderFormSchema, OrderFormValues } from "@/lib/validation";
 import { DatePickerField } from "./date-picker-field";
 
@@ -21,6 +21,7 @@ type OrderFormProps = {
   initialData?: OrderRow | null;
   cities: CityRow[];
   districts: DistrictRow[];
+  villages: VillageRow[];
   submitLabel: string;
   redirectBasePath: string;
 };
@@ -35,6 +36,7 @@ export function OrderForm({
   initialData,
   cities,
   districts,
+  villages,
   submitLabel,
   redirectBasePath,
 }: OrderFormProps) {
@@ -70,6 +72,15 @@ export function OrderForm({
         )
       : null;
 
+  const resolvedVillage =
+    initialData?.location_type === "village" && initialData.location_name
+      ? villages.find(
+          (village) =>
+            village.name.toLowerCase() ===
+            initialData.location_name!.toLowerCase(),
+        )
+      : null;
+
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(orderFormSchema),
     defaultValues: {
@@ -78,6 +89,11 @@ export function OrderForm({
       locationName:
         initialData?.location_type === "village"
           ? initialData?.location_name ?? ""
+          : "",
+      villageId: resolvedVillage
+        ? String(resolvedVillage.id)
+        : initialData?.location_type === "village" && initialData?.location_name
+          ? "new"
           : "",
       cityId: resolvedCity
         ? String(resolvedCity.id)
@@ -110,13 +126,25 @@ export function OrderForm({
 
   const locationType = form.watch("locationType");
   const selectedCityId = form.watch("cityId") ?? "";
+  const selectedVillageId = form.watch("villageId") ?? "";
   const selectedCityIdNumber =
     selectedCityId && selectedCityId !== "new" ? Number(selectedCityId) : null;
+  const selectedVillageIdNumber =
+    selectedVillageId && selectedVillageId !== "new"
+      ? Number(selectedVillageId)
+      : null;
 
   const availableDistricts = React.useMemo(() => {
     if (!selectedCityIdNumber) return [];
     return districts.filter((district) => district.city_id === selectedCityIdNumber);
   }, [districts, selectedCityIdNumber]);
+
+  const selectedVillage = React.useMemo(() => {
+    if (!selectedVillageIdNumber) return null;
+    return (
+      villages.find((village) => village.id === selectedVillageIdNumber) ?? null
+    );
+  }, [selectedVillageIdNumber, villages]);
 
   React.useEffect(() => {
     if (!didInitRef.current) {
@@ -128,15 +156,23 @@ export function OrderForm({
       form.setValue("cityName", "");
       form.setValue("districtId", "");
       form.setValue("districtName", "");
-      if (!locationType) {
-        form.setValue("locationName", "");
-      }
       return;
     }
     if (!selectedCityId) {
       form.setValue("cityId", "");
     }
   }, [form, locationType, selectedCityId]);
+
+  React.useEffect(() => {
+    if (locationType !== "village") {
+      form.setValue("villageId", "");
+      form.setValue("locationName", "");
+      return;
+    }
+    if (!selectedVillageId) {
+      form.setValue("villageId", "");
+    }
+  }, [form, locationType, selectedVillageId]);
 
   React.useEffect(() => {
     if (locationType === "city") {
@@ -150,6 +186,16 @@ export function OrderForm({
     }
     prevCityIdRef.current = selectedCityId;
   }, [form, selectedCityId, locationType]);
+
+  React.useEffect(() => {
+    if (locationType !== "village") return;
+    if (!selectedVillageId || selectedVillageId === "new") {
+      return;
+    }
+    if (selectedVillage) {
+      form.setValue("locationName", selectedVillage.name);
+    }
+  }, [form, locationType, selectedVillage, selectedVillageId]);
 
   React.useEffect(() => {
     if (!selectedCityIdNumber) return;
@@ -175,10 +221,15 @@ export function OrderForm({
     const cityIdValue =
       parsed.cityId && parsed.cityId !== "new" ? Number(parsed.cityId) : null;
     const districtIdValue = parsed.districtId ? Number(parsed.districtId) : null;
+    const villageIdValue =
+      parsed.villageId && parsed.villageId !== "new"
+        ? Number(parsed.villageId)
+        : null;
     const payload: OrderInput = {
       name: parsed.name.trim(),
       locationType: parsed.locationType,
       locationName: parsed.locationName?.trim() || null,
+      villageId: villageIdValue,
       cityId: cityIdValue,
       cityName: parsed.cityId === "new" ? parsed.cityName?.trim() || null : null,
       districtId: districtIdValue,
@@ -308,10 +359,58 @@ export function OrderForm({
           {locationType === "village" ? (
             <FormField
               control={form.control}
-              name="locationName"
+              name="villageId"
               render={({ field }) => (
                 <FormItem className="md:col-span-2">
                   <FormLabel>Село</FormLabel>
+                  <Select
+                    value={field.value ?? "none"}
+                    onValueChange={(value) => {
+                      field.onChange(value === "none" ? "" : value);
+                      if (value === "none") {
+                        form.setValue("locationName", "");
+                        return;
+                      }
+                      if (value !== "new") {
+                        const match = villages.find(
+                          (village) => String(village.id) === value,
+                        );
+                        if (match) {
+                          form.setValue("locationName", match.name);
+                        }
+                      } else {
+                        form.setValue("locationName", "");
+                      }
+                    }}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Изберете село" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="none">Не е избрано</SelectItem>
+                      {villages.map((village) => (
+                        <SelectItem key={village.id} value={String(village.id)}>
+                          {village.name}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="new">Ново село</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ) : null}
+
+          {locationType === "village" && selectedVillageId === "new" ? (
+            <FormField
+              control={form.control}
+              name="locationName"
+              render={({ field }) => (
+                <FormItem className="md:col-span-2">
+                  <FormLabel>Ново село</FormLabel>
                   <FormControl>
                     <Input placeholder="Име на селото" {...field} />
                   </FormControl>

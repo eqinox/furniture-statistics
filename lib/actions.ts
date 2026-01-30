@@ -34,6 +34,7 @@ export type OrderInput = {
   name: string;
   locationType?: "city" | "village";
   locationName?: string | null;
+  villageId?: number | null;
   cityId?: number | null;
   cityName?: string | null;
   districtId?: number | null;
@@ -69,6 +70,15 @@ export type DistrictRow = {
   name: string;
 };
 
+export type VillageRow = {
+  id: number;
+  name: string;
+};
+
+type YearRow = {
+  year: string;
+};
+
 export async function createOrder(input: OrderInput): Promise<number> {
   if (!input.name?.trim()) {
     throw new Error("Името е задължително.");
@@ -82,6 +92,17 @@ export async function createOrder(input: OrderInput): Promise<number> {
   const selectDistrict = db.prepare(
     `SELECT id, name FROM districts WHERE city_id = ? AND name = ?`,
   );
+  const insertVillage = db.prepare(`INSERT OR IGNORE INTO villages (name) VALUES (?)`);
+  const selectVillage = db.prepare(`SELECT id, name FROM villages WHERE name = ?`);
+  const insertYear = db.prepare(`INSERT OR IGNORE INTO years (year) VALUES (?)`);
+
+  const ensureYear = (dateValue?: string | null) => {
+    if (!dateValue) return;
+    const yearValue = dateValue.slice(0, 4);
+    if (yearValue.length === 4) {
+      insertYear.run(yearValue);
+    }
+  };
 
   const stmt = db.prepare(`
     INSERT INTO orders
@@ -138,6 +159,44 @@ export async function createOrder(input: OrderInput): Promise<number> {
         }
       }
     }
+    if (input.locationType === "village") {
+      const providedVillageName = input.locationName?.trim() || null;
+      let villageName: string | null = null;
+      if (input.villageId) {
+        const villageRow = db
+          .prepare(`SELECT id, name FROM villages WHERE id = ?`)
+          .get(input.villageId) as VillageRow | undefined;
+        if (villageRow) {
+          villageName = villageRow.name;
+        }
+      }
+      if (!villageName && providedVillageName) {
+        insertVillage.run(providedVillageName);
+        const villageRow = selectVillage.get(
+          providedVillageName,
+        ) as VillageRow | undefined;
+        if (villageRow) {
+          villageName = villageRow.name;
+        }
+      }
+      return stmt.run({
+        name: input.name.trim(),
+        location_type: input.locationType ?? null,
+        location_name: villageName ?? providedVillageName,
+        district: null,
+        city_id: null,
+        district_id: null,
+        final_price: input.finalPrice ?? null,
+        deposit: input.deposit ?? null,
+        is_completed: input.isCompleted ? 1 : 0,
+        ordered_at: input.orderedAt ?? null,
+        completed_at: input.completedAt ?? null,
+        description: input.description?.trim() || null,
+      });
+    }
+
+    ensureYear(input.orderedAt ?? null);
+    ensureYear(input.completedAt ?? null);
 
     return stmt.run({
       name: input.name.trim(),
@@ -229,6 +288,17 @@ export async function updateOrder(id: number, input: OrderInput): Promise<void> 
   const selectDistrict = db.prepare(
     `SELECT id, name FROM districts WHERE city_id = ? AND name = ?`,
   );
+  const insertVillage = db.prepare(`INSERT OR IGNORE INTO villages (name) VALUES (?)`);
+  const selectVillage = db.prepare(`SELECT id, name FROM villages WHERE name = ?`);
+  const insertYear = db.prepare(`INSERT OR IGNORE INTO years (year) VALUES (?)`);
+
+  const ensureYear = (dateValue?: string | null) => {
+    if (!dateValue) return;
+    const yearValue = dateValue.slice(0, 4);
+    if (yearValue.length === 4) {
+      insertYear.run(yearValue);
+    }
+  };
 
   const transaction = db.transaction(() => {
     if (next.location_type === "city") {
@@ -283,7 +353,26 @@ export async function updateOrder(id: number, input: OrderInput): Promise<void> 
       next.location_name = cityName;
       next.district = districtName;
     } else if (next.location_type === "village") {
-      next.location_name = input.locationName?.trim() || null;
+      const providedVillageName = input.locationName?.trim() || null;
+      let villageName: string | null = null;
+      if (input.villageId) {
+        const villageRow = db
+          .prepare(`SELECT id, name FROM villages WHERE id = ?`)
+          .get(input.villageId) as VillageRow | undefined;
+        if (villageRow) {
+          villageName = villageRow.name;
+        }
+      }
+      if (!villageName && providedVillageName) {
+        insertVillage.run(providedVillageName);
+        const villageRow = selectVillage.get(
+          providedVillageName,
+        ) as VillageRow | undefined;
+        if (villageRow) {
+          villageName = villageRow.name;
+        }
+      }
+      next.location_name = villageName ?? providedVillageName;
       next.district = null;
     } else {
       next.location_name = null;
@@ -320,6 +409,9 @@ export async function updateOrder(id: number, input: OrderInput): Promise<void> 
         new_value: change.newValue,
       });
     });
+
+    ensureYear(next.ordered_at);
+    ensureYear(next.completed_at);
   });
 
   transaction();
@@ -350,17 +442,17 @@ export async function getOrders(filters: OrderFilters): Promise<OrderRow[]> {
   switch (filters.filterType) {
     case "year": {
       if (filters.year) {
-        conditions.push("completed_at IS NOT NULL");
-        conditions.push("substr(completed_at, 1, 4) = ?");
+        conditions.push("COALESCE(completed_at, ordered_at) IS NOT NULL");
+        conditions.push("substr(COALESCE(completed_at, ordered_at), 1, 4) = ?");
         params.push(filters.year);
       }
       break;
     }
     case "yearMonth": {
       if (filters.year && filters.month) {
-        conditions.push("completed_at IS NOT NULL");
-        conditions.push("substr(completed_at, 1, 4) = ?");
-        conditions.push("substr(completed_at, 6, 2) = ?");
+        conditions.push("COALESCE(completed_at, ordered_at) IS NOT NULL");
+        conditions.push("substr(COALESCE(completed_at, ordered_at), 1, 4) = ?");
+        conditions.push("substr(COALESCE(completed_at, ordered_at), 6, 2) = ?");
         params.push(filters.year, filters.month);
       }
       break;
@@ -397,7 +489,7 @@ export async function getOrders(filters: OrderFilters): Promise<OrderRow[]> {
     }
     case "name": {
       if (filters.name) {
-        conditions.push("name LIKE ?");
+        conditions.push("orders.name LIKE ?");
         params.push(`%${filters.name.trim()}%`);
       }
       break;
@@ -432,32 +524,27 @@ export async function getOrderHistory(orderId: number): Promise<OrderChangeRow[]
 export async function getCompletionOptions(): Promise<
   { year: string; months: string[] }[]
 > {
-  const rows = db
-    .prepare(
-      `
-      SELECT
-        substr(completed_at, 1, 4) AS year,
-        substr(completed_at, 6, 2) AS month
-      FROM orders
-      WHERE completed_at IS NOT NULL
-      GROUP BY year, month
-      ORDER BY year DESC, month DESC
-    `,
-    )
-    .all() as Array<{ year: string; month: string }>;
+  const yearRows = db
+    .prepare(`SELECT year FROM years ORDER BY year DESC`)
+    .all() as YearRow[];
 
-  const map = new Map<string, Set<string>>();
-  rows.forEach((row) => {
-    if (!map.has(row.year)) {
-      map.set(row.year, new Set());
-    }
-    map.get(row.year)!.add(row.month);
+  const monthsStmt = db.prepare(
+    `
+    SELECT DISTINCT substr(COALESCE(completed_at, ordered_at), 6, 2) AS month
+    FROM orders
+    WHERE COALESCE(completed_at, ordered_at) IS NOT NULL
+      AND substr(COALESCE(completed_at, ordered_at), 1, 4) = ?
+    ORDER BY month DESC
+  `,
+  );
+
+  return yearRows.map((row) => {
+    const monthRows = monthsStmt.all(row.year) as Array<{ month: string }>;
+    return {
+      year: row.year,
+      months: monthRows.map((monthRow) => monthRow.month),
+    };
   });
-
-  return Array.from(map.entries()).map(([year, months]) => ({
-    year,
-    months: Array.from(months).sort(),
-  }));
 }
 
 export async function getSofiaDistricts(): Promise<string[]> {
@@ -490,4 +577,8 @@ export async function getAllDistricts(): Promise<DistrictRow[]> {
   return db
     .prepare(`SELECT id, city_id, name FROM districts ORDER BY name`)
     .all() as DistrictRow[];
+}
+
+export async function getVillages(): Promise<VillageRow[]> {
+  return db.prepare(`SELECT id, name FROM villages ORDER BY name`).all() as VillageRow[];
 }

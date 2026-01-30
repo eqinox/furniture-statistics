@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { format, parse } from "date-fns";
+import { bg } from "date-fns/locale";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -32,7 +33,13 @@ type OrdersTableProps = {
 function formatDate(value: string | null) {
   if (!value) return "-";
   const date = parse(value, "yyyy-MM-dd", new Date());
-  return format(date, "dd.MM.yyyy");
+  const formatted = format(date, "dd MMMM yyyy", { locale: bg });
+  const parts = formatted.split(" ");
+  if (parts.length >= 3) {
+    parts[1] = `${parts[1].charAt(0).toUpperCase()}${parts[1].slice(1)}`;
+    return parts.join(" ");
+  }
+  return formatted;
 }
 
 function formatLocation(order: OrderRow) {

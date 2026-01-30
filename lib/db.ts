@@ -51,6 +51,15 @@ function initializeDb(db: Database.Database) {
       FOREIGN KEY(city_id) REFERENCES cities(id)
     );
 
+    CREATE TABLE IF NOT EXISTS years (
+      year TEXT PRIMARY KEY
+    );
+
+    CREATE TABLE IF NOT EXISTS villages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL COLLATE NOCASE UNIQUE
+    );
+
     CREATE UNIQUE INDEX IF NOT EXISTS idx_districts_city_name_nocase
       ON districts(city_id, name COLLATE NOCASE);
   `);
@@ -112,6 +121,20 @@ function initializeDb(db: Database.Database) {
   if (cityCount.count === 0) {
     db.prepare(`INSERT INTO cities (name) VALUES (?)`).run("София");
   }
+
+  db.exec(`
+    INSERT OR IGNORE INTO years (year)
+    SELECT DISTINCT substr(ordered_at, 1, 4)
+    FROM orders
+    WHERE ordered_at IS NOT NULL;
+  `);
+
+  db.exec(`
+    INSERT OR IGNORE INTO years (year)
+    SELECT DISTINCT substr(completed_at, 1, 4)
+    FROM orders
+    WHERE completed_at IS NOT NULL;
+  `);
 }
 
 function getDb(): Database.Database {
@@ -135,6 +158,29 @@ function getDb(): Database.Database {
     .get() as { name?: string } | undefined;
   if (!hasCities) {
     initializeDb(db);
+  }
+
+  const hasYears = db
+    .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='years'`)
+    .get() as { name?: string } | undefined;
+  if (!hasYears) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS years (
+        year TEXT PRIMARY KEY
+      );
+    `);
+    db.exec(`
+      INSERT OR IGNORE INTO years (year)
+      SELECT DISTINCT substr(ordered_at, 1, 4)
+      FROM orders
+      WHERE ordered_at IS NOT NULL;
+    `);
+    db.exec(`
+      INSERT OR IGNORE INTO years (year)
+      SELECT DISTINCT substr(completed_at, 1, 4)
+      FROM orders
+      WHERE completed_at IS NOT NULL;
+    `);
   }
 
   const ordersColumns = db.prepare(`PRAGMA table_info(orders)`).all() as Array<{

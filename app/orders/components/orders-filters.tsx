@@ -3,20 +3,24 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { CityRow, DistrictRow, VillageRow } from "@/lib/actions";
 
 type CompletionOptions = { year: string; months: string[] };
 
 type OrdersFiltersProps = {
   completionOptions: CompletionOptions[];
-  sofiaDistricts: string[];
+  cities: CityRow[];
+  districts: DistrictRow[];
+  villages: VillageRow[];
 };
 
 export function OrdersFilters({
   completionOptions,
-  sofiaDistricts,
+  cities,
+  districts,
+  villages,
 }: OrdersFiltersProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -42,6 +46,9 @@ export function OrdersFilters({
     searchParams.get("district") ?? "all",
   );
   const [name, setName] = React.useState(searchParams.get("name") ?? "");
+  const [debouncedPriceValue, setDebouncedPriceValue] = React.useState(priceValue);
+  const [debouncedName, setDebouncedName] = React.useState(name);
+  const lastQueryRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
     setFilterType(searchParams.get("filter") ?? "all");
@@ -55,6 +62,20 @@ export function OrdersFilters({
     setName(searchParams.get("name") ?? "");
   }, [searchParams]);
 
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedPriceValue(priceValue);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [priceValue]);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedName(name);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [name]);
+
   const monthsForYear =
     completionOptions.find((option) => option.year === year)?.months ?? [];
 
@@ -64,7 +85,30 @@ export function OrdersFilters({
     }
   }, [filterType, month, monthsForYear]);
 
-  const applyFilters = () => {
+  const selectedCity = React.useMemo(() => {
+    if (locationType !== "city" || !locationName) return null;
+    return (
+      cities.find(
+        (city) => city.name.toLowerCase() === locationName.toLowerCase(),
+      ) ?? null
+    );
+  }, [cities, locationName, locationType]);
+
+  const availableDistricts = React.useMemo(() => {
+    if (!selectedCity) return [];
+    return districts.filter((item) => item.city_id === selectedCity.id);
+  }, [districts, selectedCity]);
+
+  const applyFilters = (params: URLSearchParams) => {
+    const nextQuery = params.toString();
+    if (nextQuery === lastQueryRef.current) {
+      return;
+    }
+    lastQueryRef.current = nextQuery;
+    router.push(`/orders?${nextQuery}`);
+  };
+
+  React.useEffect(() => {
     const params = new URLSearchParams();
     params.set("filter", filterType);
 
@@ -75,26 +119,40 @@ export function OrdersFilters({
       params.set("year", year);
       params.set("month", month);
     }
-    if (filterType === "price" && priceValue) {
+    if (filterType === "yearMonth" && year && !month) {
+      return;
+    }
+    if (filterType === "price" && debouncedPriceValue) {
       params.set("priceComparison", priceComparison);
-      params.set("priceValue", priceValue);
+      params.set("priceValue", debouncedPriceValue);
     }
     if (filterType === "location") {
       if (locationType) params.set("locationType", locationType);
       if (locationName) params.set("locationName", locationName);
-      if (locationName === "София" && district && district !== "all") {
+      if (locationType === "city" && district && district !== "all") {
         params.set("district", district);
       }
     }
-    if (filterType === "name" && name) {
-      params.set("name", name);
+    if (filterType === "name" && debouncedName) {
+      params.set("name", debouncedName);
     }
 
-    router.push(`/orders?${params.toString()}`);
-  };
+    applyFilters(params);
+  }, [
+    filterType,
+    year,
+    month,
+    priceComparison,
+    debouncedPriceValue,
+    locationType,
+    locationName,
+    district,
+    debouncedName,
+  ]);
 
   const resetFilters = () => {
     router.push("/orders");
+    lastQueryRef.current = null;
     setFilterType("all");
     setYear("");
     setMonth("");
@@ -194,7 +252,14 @@ export function OrdersFilters({
           <>
             <div>
               <label className="text-sm font-medium">Тип</label>
-              <Select value={locationType} onValueChange={setLocationType}>
+              <Select
+                value={locationType}
+                onValueChange={(value) => {
+                  setLocationType(value);
+                  setLocationName("");
+                  setDistrict("all");
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Изберете" />
                 </SelectTrigger>
@@ -204,26 +269,76 @@ export function OrdersFilters({
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <label className="text-sm font-medium">Населено място</label>
-              <Input
-                value={locationName}
-                onChange={(event) => setLocationName(event.target.value)}
-                placeholder="Например София"
-              />
-            </div>
-            {locationName === "София" ? (
+
+            {locationType === "city" ? (
+              <div>
+                <label className="text-sm font-medium">Град</label>
+                <Select
+                  value={locationName || "none"}
+                  onValueChange={(value) => {
+                    setLocationName(value === "none" ? "" : value);
+                    setDistrict("all");
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Изберете град" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Не е избрано</SelectItem>
+                    {cities.map((city) => (
+                      <SelectItem key={city.id} value={city.name}>
+                        {city.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+
+            {locationType === "village" ? (
+              <div>
+                <label className="text-sm font-medium">Село</label>
+                <Select
+                  value={locationName || "none"}
+                  onValueChange={(value) =>
+                    setLocationName(value === "none" ? "" : value)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Изберете село" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Не е избрано</SelectItem>
+                    {villages.map((village) => (
+                      <SelectItem key={village.id} value={village.name}>
+                        {village.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+
+            {locationType === "city" ? (
               <div>
                 <label className="text-sm font-medium">Квартал</label>
-                <Select value={district} onValueChange={setDistrict}>
+                <Select
+                  value={district}
+                  onValueChange={setDistrict}
+                  disabled={!selectedCity}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Всички квартали" />
+                    <SelectValue
+                      placeholder={
+                        selectedCity ? "Изберете квартал" : "Изберете град"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Всички</SelectItem>
-                    {sofiaDistricts.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {value}
+                    {availableDistricts.map((item) => (
+                      <SelectItem key={item.id} value={item.name}>
+                        {item.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -246,10 +361,13 @@ export function OrdersFilters({
       </div>
 
       <div className="flex gap-3">
-        <Button onClick={applyFilters}>Филтрирай</Button>
-        <Button variant="outline" onClick={resetFilters}>
+        <button
+          type="button"
+          onClick={resetFilters}
+          className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+        >
           Изчисти
-        </Button>
+        </button>
       </div>
     </div>
   );

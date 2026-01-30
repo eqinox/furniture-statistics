@@ -17,6 +17,7 @@ export const orderFormSchema = z
     name: z.string().trim().min(1, "Името е задължително."),
     locationType: z.enum(["city", "village"]).optional(),
     locationName: z.string().trim().optional(),
+    villageId: z.string().trim().optional(),
     cityId: z.string().trim().optional(),
     cityName: z.string().trim().optional(),
     districtId: z.string().trim().optional(),
@@ -31,6 +32,7 @@ export const orderFormSchema = z
   .refine(
     (data) => {
       if (data.locationType !== "village") return true;
+      if (data.villageId && data.villageId !== "new") return true;
       return Boolean(data.locationName && data.locationName.trim().length > 0);
     },
     {

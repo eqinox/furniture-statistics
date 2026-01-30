@@ -2,9 +2,11 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import {
+  getAllDistricts,
+  getCities,
   getCompletionOptions,
   getOrders,
-  getSofiaDistricts,
+  getVillages,
   OrderFilters,
 } from "@/lib/actions";
 import { OrdersFilters } from "./components/orders-filters";
@@ -16,8 +18,11 @@ type OrdersPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-function parseFilters(searchParams: OrdersPageProps["searchParams"]): OrderFilters {
-  const filterType = (searchParams.filter as string | undefined) ?? "all";
+function parseFilters(
+  searchParams: Record<string, string | string[] | undefined>,
+): OrderFilters {
+  const filterType =
+    (searchParams.filter as OrderFilters["filterType"]) ?? "all";
   const year = searchParams.year as string | undefined;
   const month = searchParams.month as string | undefined;
   const priceComparison = searchParams.priceComparison as "gt" | "lt" | undefined;
@@ -44,10 +49,12 @@ function parseFilters(searchParams: OrdersPageProps["searchParams"]): OrderFilte
 export default async function OrdersPage({ searchParams }: OrdersPageProps) {
   const resolvedSearchParams = await searchParams;
   const filters = parseFilters(resolvedSearchParams);
-  const [orders, completionOptions, sofiaDistricts] = await Promise.all([
+  const [orders, completionOptions, cities, districts, villages] = await Promise.all([
     getOrders(filters),
     getCompletionOptions(),
-    getSofiaDistricts(),
+    getCities(),
+    getAllDistricts(),
+    getVillages(),
   ]);
 
   return (
@@ -67,7 +74,9 @@ export default async function OrdersPage({ searchParams }: OrdersPageProps) {
 
         <OrdersFilters
           completionOptions={completionOptions}
-          sofiaDistricts={sofiaDistricts}
+          cities={cities}
+          districts={districts}
+          villages={villages}
         />
 
         <OrdersTable data={orders} />

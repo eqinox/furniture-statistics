@@ -6,6 +6,7 @@ import {
   getAllDistricts,
   getCities,
   getOrderById,
+  getVillages,
   updateOrder,
 } from "@/lib/actions";
 import { OrderForm } from "../../components/order-form";
@@ -23,10 +24,11 @@ export default async function OrderEditPage({ params }: OrderEditPageProps) {
     notFound();
   }
 
-  const [order, cities, districts] = await Promise.all([
+  const [order, cities, districts, villages] = await Promise.all([
     getOrderById(orderId),
     getCities(),
     getAllDistricts(),
+    getVillages(),
   ]);
 
   if (!order) {
@@ -59,6 +61,7 @@ export default async function OrderEditPage({ params }: OrderEditPageProps) {
           initialData={order}
           cities={cities}
           districts={districts}
+          villages={villages}
           submitLabel="Запази промените"
           redirectBasePath="/orders"
         />

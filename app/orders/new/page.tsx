@@ -1,15 +1,16 @@
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import { createOrder, getAllDistricts, getCities } from "@/lib/actions";
+import { createOrder, getAllDistricts, getCities, getVillages } from "@/lib/actions";
 import { OrderForm } from "../components/order-form";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewOrderPage() {
-  const [cities, districts] = await Promise.all([
+  const [cities, districts, villages] = await Promise.all([
     getCities(),
     getAllDistricts(),
+    getVillages(),
   ]);
 
   return (
@@ -31,6 +32,7 @@ export default async function NewOrderPage() {
           action={createOrder}
           cities={cities}
           districts={districts}
+          villages={villages}
           submitLabel="Запази поръчка"
           redirectBasePath="/orders"
         />
