@@ -4,7 +4,10 @@ import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
 
-const dataDir = path.join(process.cwd(), "data");
+const dataDir =
+  process.env.VERCEL === "1"
+    ? path.join("/tmp", "data")
+    : path.join(process.cwd(), "data");
 const dbPath = path.join(dataDir, "orders.db");
 
 type DbGlobal = typeof globalThis & {
