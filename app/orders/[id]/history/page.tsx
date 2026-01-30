@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { notFound } from "next/navigation";
 
 import { getOrderHistory } from "@/lib/actions";
+import { formatBgDate, formatBgDateTime } from "@/lib/date-format";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,7 @@ export default async function OrderHistoryPage({
       return value === "1" ? "Да" : "Не";
     }
     if (field === "ordered_at" || field === "completed_at") {
-      return value;
+      return formatBgDate(value, { placeholder: "—" });
     }
     return value;
   };
@@ -68,20 +69,22 @@ export default async function OrderHistoryPage({
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Дата на промяна</TableHead>
                 <TableHead>Поле</TableHead>
                 <TableHead>Стара стойност</TableHead>
                 <TableHead>Нова стойност</TableHead>
-                <TableHead>Дата</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {history.length ? (
                 history.map((row) => (
                   <TableRow key={row.id}>
+                    <TableCell>
+                      {formatBgDateTime(row.changed_at, { placeholder: "—" })}
+                    </TableCell>
                     <TableCell>{fieldLabels[row.field] ?? row.field}</TableCell>
                     <TableCell>{formatValue(row.field, row.old_value)}</TableCell>
                     <TableCell>{formatValue(row.field, row.new_value)}</TableCell>
-                    <TableCell>{row.changed_at}</TableCell>
                   </TableRow>
                 ))
               ) : (

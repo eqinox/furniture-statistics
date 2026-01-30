@@ -166,7 +166,7 @@ export function OrdersFilters({
 
   return (
     <div className="space-y-4 rounded-md border bg-white p-4">
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="flex flex-wrap gap-3">
         <div>
           <label className="text-sm font-medium">Филтър</label>
           <Select value={filterType} onValueChange={setFilterType}>

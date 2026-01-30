@@ -26,7 +26,8 @@ function initializeDb(db: Database.Database) {
       ordered_at TEXT,
       completed_at TEXT,
       description TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (datetime('now', '+2 hours')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now', '+2 hours'))
     );
 
     CREATE TABLE IF NOT EXISTS order_changes (
@@ -35,7 +36,7 @@ function initializeDb(db: Database.Database) {
       field TEXT NOT NULL,
       old_value TEXT,
       new_value TEXT,
-      changed_at TEXT NOT NULL DEFAULT (datetime('now')),
+      changed_at TEXT NOT NULL DEFAULT (datetime('now', '+2 hours')),
       FOREIGN KEY(order_id) REFERENCES orders(id)
     );
 
@@ -75,6 +76,16 @@ function initializeDb(db: Database.Database) {
   if (!ordersColumnNames.has("district_id")) {
     db.exec(`ALTER TABLE orders ADD COLUMN district_id INTEGER;`);
   }
+  if (!ordersColumnNames.has("updated_at")) {
+    db.exec(
+      `ALTER TABLE orders ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'));`,
+    );
+  }
+  db.exec(`
+    UPDATE orders
+    SET updated_at = created_at
+    WHERE updated_at IS NULL;
+  `);
 
   const districtColumns = db
     .prepare(`PRAGMA table_info(districts)`)
@@ -193,6 +204,16 @@ function getDb(): Database.Database {
   if (!ordersColumnNames.has("district_id")) {
     db.exec(`ALTER TABLE orders ADD COLUMN district_id INTEGER;`);
   }
+  if (!ordersColumnNames.has("updated_at")) {
+    db.exec(
+      `ALTER TABLE orders ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'));`,
+    );
+  }
+  db.exec(`
+    UPDATE orders
+    SET updated_at = created_at
+    WHERE updated_at IS NULL;
+  `);
 
   return db;
 }

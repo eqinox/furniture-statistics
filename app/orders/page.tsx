@@ -59,7 +59,7 @@ export default async function OrdersPage({ searchParams }: OrdersPageProps) {
 
   return (
     <div className="min-h-screen bg-zinc-50 px-6 py-8 text-zinc-900">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold">Всички поръчки</h1>

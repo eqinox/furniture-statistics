@@ -1,5 +1,7 @@
 "use server";
 
+import { redirect } from "next/navigation";
+
 import { db } from "@/lib/db";
 
 export type OrderRow = {
@@ -19,6 +21,7 @@ export type OrderRow = {
   completed_at: string | null;
   description: string | null;
   created_at: string;
+  updated_at: string;
 };
 
 export type OrderChangeRow = {
@@ -106,9 +109,9 @@ export async function createOrder(input: OrderInput): Promise<number> {
 
   const stmt = db.prepare(`
     INSERT INTO orders
-      (name, location_type, location_name, district, city_id, district_id, final_price, deposit, is_completed, ordered_at, completed_at, description)
+      (name, location_type, location_name, district, city_id, district_id, final_price, deposit, is_completed, ordered_at, completed_at, description, updated_at)
     VALUES
-      (@name, @location_type, @location_name, @district, @city_id, @district_id, @final_price, @deposit, @is_completed, @ordered_at, @completed_at, @description)
+      (@name, @location_type, @location_name, @district, @city_id, @district_id, @final_price, @deposit, @is_completed, @ordered_at, @completed_at, @description, datetime('now', '+2 hours'))
   `);
 
   const transaction = db.transaction(() => {
@@ -257,6 +260,7 @@ export async function updateOrder(id: number, input: OrderInput): Promise<void> 
     completed_at: input.completedAt ?? null,
     description: input.description?.trim() || null,
     created_at: existing.created_at,
+    updated_at: existing.updated_at ?? existing.created_at,
   };
 
   const updateStmt = db.prepare(`
@@ -272,7 +276,8 @@ export async function updateOrder(id: number, input: OrderInput): Promise<void> 
       is_completed = @is_completed,
       ordered_at = @ordered_at,
       completed_at = @completed_at,
-      description = @description
+      description = @description,
+      updated_at = datetime('now', '+2 hours')
     WHERE id = @id
   `);
 
@@ -519,6 +524,27 @@ export async function getOrderHistory(orderId: number): Promise<OrderChangeRow[]
   return db
     .prepare(`SELECT * FROM order_changes WHERE order_id = ? ORDER BY changed_at DESC`)
     .all(orderId) as OrderChangeRow[];
+}
+
+export async function deleteOrder(orderId: number): Promise<void> {
+  const existing = db
+    .prepare(`SELECT id FROM orders WHERE id = ?`)
+    .get(orderId) as { id: number } | undefined;
+  if (!existing) {
+    throw new Error("Поръчката не е намерена.");
+  }
+
+  const transaction = db.transaction(() => {
+    db.prepare(`DELETE FROM order_changes WHERE order_id = ?`).run(orderId);
+    db.prepare(`DELETE FROM orders WHERE id = ?`).run(orderId);
+  });
+
+  transaction();
+}
+
+export async function deleteOrderAndRedirect(orderId: number): Promise<void> {
+  await deleteOrder(orderId);
+  redirect("/orders");
 }
 
 export async function getCompletionOptions(): Promise<

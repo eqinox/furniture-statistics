@@ -1,20 +1,26 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { format, parse } from "date-fns";
+import { formatBgDate } from "@/lib/date-format";
 
 import { Button } from "@/components/ui/button";
-import { getOrderById } from "@/lib/actions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { deleteOrderAndRedirect, getOrderById } from "@/lib/actions";
 
 export const dynamic = "force-dynamic";
 
 type OrderDetailsPageProps = {
   params: Promise<{ id: string }>;
 };
-
-function formatDate(value: string | null) {
-  if (!value) return "—";
-  return format(parse(value, "yyyy-MM-dd", new Date()), "dd.MM.yyyy");
-}
 
 export default async function OrderDetailsPage({
   params,
@@ -51,6 +57,11 @@ export default async function OrderDetailsPage({
     );
   }
 
+  async function deleteAction() {
+    "use server";
+    await deleteOrderAndRedirect(orderId);
+  }
+
   const location =
     order.location_type === "city"
       ? order.city_name || order.location_name
@@ -76,13 +87,33 @@ export default async function OrderDetailsPage({
               Детайли за поръчката и информация за клиента.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline">
               <Link href="/orders">Виж всички</Link>
             </Button>
             <Button asChild>
               <Link href={`/orders/${order.id}/edit`}>Редактирай</Link>
             </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive">Изтрий</Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Сигурни ли сте?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Това действие ще изтрие поръчката и историята на промените.
+                    Не може да бъде отменено.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Отказ</AlertDialogCancel>
+                  <form action={deleteAction}>
+                    <AlertDialogAction type="submit">Изтрий</AlertDialogAction>
+                  </form>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </header>
 
@@ -124,13 +155,17 @@ export default async function OrderDetailsPage({
               <dt className="text-sm font-medium text-muted-foreground">
                 Дата на поръчване
               </dt>
-              <dd className="text-base">{formatDate(order.ordered_at)}</dd>
+              <dd className="text-base">
+                {formatBgDate(order.ordered_at, { placeholder: "—" })}
+              </dd>
             </div>
             <div>
               <dt className="text-sm font-medium text-muted-foreground">
                 Дата на изпълнение
               </dt>
-              <dd className="text-base">{formatDate(order.completed_at)}</dd>
+              <dd className="text-base">
+                {formatBgDate(order.completed_at, { placeholder: "—" })}
+              </dd>
             </div>
             <div className="md:col-span-2">
               <dt className="text-sm font-medium text-muted-foreground">

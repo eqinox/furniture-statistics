@@ -1,9 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { format, parse } from "date-fns";
-import { bg } from "date-fns/locale";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ColumnDef,
@@ -25,22 +22,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { OrderRow } from "@/lib/actions";
+import { formatBgDate } from "@/lib/date-format";
 
 type OrdersTableProps = {
   data: OrderRow[];
 };
-
-function formatDate(value: string | null) {
-  if (!value) return "-";
-  const date = parse(value, "yyyy-MM-dd", new Date());
-  const formatted = format(date, "dd MMMM yyyy", { locale: bg });
-  const parts = formatted.split(" ");
-  if (parts.length >= 3) {
-    parts[1] = `${parts[1].charAt(0).toUpperCase()}${parts[1].slice(1)}`;
-    return parts.join(" ");
-  }
-  return formatted;
-}
 
 function formatLocation(order: OrderRow) {
   if (order.location_type === "city") {
@@ -148,7 +134,7 @@ export function OrdersTable({ data }: OrdersTableProps) {
           </Button>
         ),
         size: 130,
-        cell: ({ row }) => formatDate(row.original.ordered_at),
+        cell: ({ row }) => formatBgDate(row.original.ordered_at),
       },
       {
         accessorKey: "completed_at",
@@ -162,22 +148,7 @@ export function OrdersTable({ data }: OrdersTableProps) {
           </Button>
         ),
         size: 130,
-        cell: ({ row }) => formatDate(row.original.completed_at),
-      },
-      {
-        id: "actions",
-        header: "Действия",
-        cell: ({ row }) => (
-          <div className="flex gap-2">
-            <Button
-              asChild
-              size="sm"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <Link href={`/orders/${row.original.id}/edit`}>Редактирай</Link>
-            </Button>
-          </div>
-        ),
+        cell: ({ row }) => formatBgDate(row.original.completed_at),
       },
     ],
     [],
@@ -243,8 +214,8 @@ export function OrdersTable({ data }: OrdersTableProps) {
                         ? "w-[110px]"
                         : cell.column.id === "is_completed"
                           ? "w-[80px]"
-                          : cell.column.id === "ordered_at" ||
-                              cell.column.id === "completed_at"
+                        : cell.column.id === "ordered_at" ||
+                            cell.column.id === "completed_at"
                             ? "w-[140px]"
                             : undefined
                     }
